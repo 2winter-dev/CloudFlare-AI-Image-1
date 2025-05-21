@@ -11,7 +11,9 @@ async function handleRequest(request, env) {
 
   if (!imageBuffer) {
     //翻译优化
+    let originPromptKey = imagePrompt;
     try{
+     
       let transRes = await translate(imagePrompt,env);
       console.log(transRes);
       imagePrompt = transRes.result.translated_text
@@ -21,8 +23,8 @@ async function handleRequest(request, env) {
       console.log(e)
     }
     // 如果没有缓存的图像，生成图像并存储
-    console.log('提示词：',imagePrompt)
-    imageBuffer = await generateImageWithCloudflare(imagePrompt, env);
+    console.log('提示词：',imagePrompt,originPromptKey)
+    imageBuffer = await generateImageWithCloudflare(imagePrompt, env,originPromptKey);
   }
 
   // 返回图像二进制数据，浏览器会直接显示图像
@@ -48,7 +50,7 @@ async function translate(text,env,input,output) {
   }).then((res)=>res.json());
 }
 
-async function generateImageWithCloudflare(prompt, env) {
+async function generateImageWithCloudflare(prompt, env,originPromptKeys) {
   // 使用 Cloudflare 的图像生成模型进行图像生成
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.account_id}/ai/run/${env.CF_IMG2TEXT_MODEL}`, {
     method: 'POST',
@@ -71,7 +73,7 @@ async function generateImageWithCloudflare(prompt, env) {
   const imageBuffer = await response.arrayBuffer();
 
   // 使用 `prompt` 作为唯一的 `key`，确保相同的提示词返回相同的图像
-  const key = `image-${prompt}`;  // 使用提示词作为 key
+  const key = `image-${originPromptKeys}`;  // 使用提示词作为 key
   await env.IMAGE_KV.put(key, imageBuffer, { expirationTtl: 1800 });
 
   // 返回图像的二进制数据
